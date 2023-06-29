@@ -1,34 +1,59 @@
 from flask import Flask, render_template, request
-from qa_engine import get_ai_response
+import openai
+import os
 
+
+# set openai API key
+# openai.api_key = ''
+# os.environ["OPENAI_API_KEY"] = ''
+# in case it is already defined on windows path variables
+os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY", "")
+
+# array to store conversations
+conversation = ["You are a virtual assistant and you speak portuguese."]    # define initial role
 
 app = Flask(__name__)
 
-# array to store conversations
-conversations = []
+# function to generate AI response
+def generate_response(prompt):
+    response = openai.Completion.create(
+        engine='text-davinci-003',  # define AI model
+        temperature=0.5,            # define creativity in the response
+        prompt=prompt,              # input prompt
+        max_tokens=100,             # max amount of tokens in the prompt and response
+        n=1,                        # number of completions to generate
+        stop=None,                  # setting to control response generation
+    )
 
-# views
-@app.route('/', methods=['GET', 'POST'])
-def home():
-    if request.method == 'GET':
-        return render_template('index.html')
-    if request.method == 'POST':
-        # obtain query from user input
-        query = request.form['query'] + '\n'
-
-        # generate response based on query
-        response = get_ai_response(query)
-
-        # append queries and responses to array
-        conversations.append(query)
-        conversations.append(response)
-
-        # render page and display chat
-        return render_template('index.html', chat = conversations)
+    if response.choices and response.choices[0].text:
+        return response.choices[0].text.strip()
     else:
-        return render_template('index.html')
+        return "Sorry, I didn't understand that."
+
+# define app routes
+@app.route("/")
+def index():
+    return render_template("index.html")
+
+@app.route("/get")
+def get_bot_response():
+    user_input = request.args.get("msg") + '\n'
+    if user_input:
+        conversation.append(f"{user_input}")
+
+        # get conversation history
+        prompt = "\n".join(conversation[-3:])
+
+        # generate AI response
+        response = generate_response(prompt)
+
+        # add AI response to conversation
+        conversation.append(f"{response}")
+
+        return response
+    else:
+        return "Sorry, I didn't understand that."
 
 
-# run
-if __name__ == '__app__':
+if __name__ == "__main__":
     app.run()
